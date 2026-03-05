@@ -23,7 +23,7 @@ resource "aws_instance" "devops_server" {
   ]
 
   associate_public_ip_address = true
-
+  iam_instance_profile = aws_iam_instance_profile.ec2_profile.name
   tags = {
     Name = "devops-assessment-server"
   }
