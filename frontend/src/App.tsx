@@ -8,11 +8,14 @@ function App() {
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
 
+  const API_URL = "http://13.204.92.218:8000/api/hello/"
+
   const fetchData = async () => {
     setLoading(true)
     setError(null)
+
     try {
-      const response = await axios.get('http://localhost:8000/api/hello/')
+      const response = await axios.get(API_URL)
       setMessage(response.data.message)
     } catch (err) {
       console.error(err)
@@ -51,6 +54,7 @@ function App() {
 
         <div className="content">
           <Globe className="icon-globe" size={64} />
+
           {loading ? (
             <div className="skeleton-loader">
               <div className="skeleton-text"></div>
