@@ -1,0 +1,73 @@
+name: DevOps CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+
+  terraform:
+    runs-on: ubuntu-latest
+
+    outputs:
+      ec2_ip: ${{ steps.get_ip.outputs.ec2_ip }}
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve
+
+      - name: Get EC2 Public IP
+        id: get_ip
+        run: |
+          echo "ec2_ip=$(terraform output -raw ec2_public_ip)" >> $GITHUB_OUTPUT
+
+  deploy:
+
+    runs-on: ubuntu-latest
+    needs: terraform
+
+    steps:
+
+      - name: Deploy application on EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ needs.terraform.outputs.ec2_ip }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+
+          script: |
+
+            sudo apt update
+            sudo apt install docker.io awscli -y
+
+            sudo systemctl start docker
+            sudo systemctl enable docker
+
+            aws ecr get-login-password --region ${{ secrets.AWS_REGION }} \
+            | sudo docker login --username AWS --password-stdin $(echo ${{ secrets.ECR_BACKEND }} | cut -d'/' -f1)
+
+            sudo docker pull ${{ secrets.ECR_BACKEND }}:${{ github.sha }}
+            sudo docker pull ${{ secrets.ECR_FRONTEND }}:${{ github.sha }}
+
+            sudo docker stop backend || true
+            sudo docker stop frontend || true
+
+            sudo docker rm backend || true
+            sudo docker rm frontend || true
+
+            sudo docker run -d -p 8000:8000 --name backend \
+            ${{ secrets.ECR_BACKEND }}:${{ github.sha }}
+
+            sudo docker run -d -p 80:5173 --name frontend \
+            ${{ secrets.ECR_FRONTEND }}:${{ github.sha }}
